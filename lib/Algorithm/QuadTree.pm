@@ -150,7 +150,8 @@ sub add
 	# assume coords are (xmin, ymix, xmax, ymax).
 
 	# modify coords according to window.
-	@coords = $self->_adjustCoords(@coords);
+	@coords = $self->_adjustCoords(@coords)
+		unless $self->{SCALE} == 1;
 
 	($coords[0], $coords[2]) = ($coords[2], $coords[0])
 		if $coords[2] < $coords[0];
@@ -247,7 +248,8 @@ sub getEnclosedObjects
 
 	$self->{TEMP} = [];
 
-	@coords = $self->_adjustCoords(@coords);
+	@coords = $self->_adjustCoords(@coords)
+		unless $self->{SCALE} == 1;
 
 	$self->_checkOverlap(
 		0,    # current index
