@@ -553,23 +553,13 @@ This method resets the window region to the full map.
 
 None that I am aware of. Please let me know if you find any.
 
-=head1 INSTALLATION
-
-Either the usual:
-
-	perl Makefile.PL
-	make
-	make install
-
-or just stick it somewhere in @INC where perl can find it. It is in pure Perl.
-
-=head1 AUTHOR
+=head1 AUTHORS
 
 Ala Qumsieh I<aqumsieh@cpan.org>
+
+Currently maintained by Bartosz Jarzyna I<bbrtj.pro@gmail.com>
 
 =head1 COPYRIGHTS
 
 This module is distributed under the same terms as Perl itself.
-
-=cut
 
