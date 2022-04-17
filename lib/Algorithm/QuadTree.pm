@@ -415,7 +415,7 @@ and so on up to a desired depth.
 Here is a somewhat crude diagram (those diagrams might not appear unless
 you run pod2text):
 
-=for text
+=begin text
 
                    ------------------------------
                   |AAA|AAB|       |              |
@@ -440,7 +440,7 @@ you run pod2text):
 
 Which corresponds to the following quadtree:
 
-=for text
+=begin text
 
                     __ROOT_
                    /  / \  \
