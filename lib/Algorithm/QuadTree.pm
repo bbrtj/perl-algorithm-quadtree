@@ -24,31 +24,32 @@ our $VERSION = 0.1;
 #
 ###############################
 
-sub new {
-    my $self  = shift;
-    my $class = ref($self) || $self;
+sub new
+{
+	my $self  = shift;
+	my $class = ref($self) || $self;
 
-    my $obj   = bless {} => $class;
+	my $obj = bless {} => $class;
 
-    $obj->{BACKREF} = {};
-    $obj->{OBJECTS} = [];
-    $obj->{ORIGIN}  = [0, 0];
-    $obj->{SCALE}   = 1;
+	$obj->{BACKREF} = {};
+	$obj->{OBJECTS} = [];
+	$obj->{ORIGIN} = [0, 0];
+	$obj->{SCALE} = 1;
 
-    my %args  = @_;
+	my %args = @_;
 
-    for my $arg (qw/xmin ymin xmax ymax depth/) {
-	unless (exists $args{"-$arg"}) {
-	    carp "- must specify $arg";
-	    return undef;
+	for my $arg (qw/xmin ymin xmax ymax depth/) {
+		unless (exists $args{"-$arg"}) {
+			carp "- must specify $arg";
+			return undef;
+		}
+
+		$obj->{uc $arg} = $args{"-$arg"};
 	}
 
-	$obj->{uc $arg} = $args{"-$arg"};
-    }
+	$obj->_segment;
 
-    $obj->_segment;
-
-    return $obj;
+	return $obj;
 }
 
 ###############################
@@ -60,18 +61,19 @@ sub new {
 #
 ###############################
 
-sub _segment {
-    my $obj = shift;
+sub _segment
+{
+	my $obj = shift;
 
-    $obj->_addLevel(
-		    $obj->{XMIN},
-		    $obj->{YMIN},
-		    $obj->{XMAX},
-		    $obj->{YMAX},
-		    1,             # current depth
-		    0,             # current index
-		    undef,         # parent index
-		    );
+	$obj->_addLevel(
+		$obj->{XMIN},
+		$obj->{YMIN},
+		$obj->{XMAX},
+		$obj->{YMAX},
+		1,    # current depth
+		0,    # current index
+		undef,    # parent index
+	);
 
 }
 
@@ -84,41 +86,48 @@ sub _segment {
 #
 ###############################
 
-sub _addLevel {
-    my ($obj,
-	$xmin,
-	$ymin,
-	$xmax,
-	$ymax,
-	$curDepth,
-	$index,
-	$parent,
+sub _addLevel
+{
+	my (
+		$obj,
+		$xmin, $ymin,
+		$xmax, $ymax,
+		$curDepth,
+		$index,
+		$parent,
 	) = @_;
 
-    $obj->{AREA}    [$index] = [$xmin, $ymin, $xmax, $ymax];
-    $obj->{PARENT}  [$index] = $parent;
-    $obj->{CHILDREN}[$index] = [];
-    $obj->{OBJECTS} [$index] = [];
+	$obj->{AREA}	[$index] = [$xmin, $ymin, $xmax, $ymax];
+	$obj->{PARENT}  [$index] = $parent;
+	$obj->{CHILDREN}[$index] = [];
+	$obj->{OBJECTS} [$index] = [];
 
-    if (defined $parent) {
+	if (defined $parent) {
 	push @{$obj->{CHILDREN}[$parent]} => $index;
-    }
+	}
 
-    return if $curDepth == $obj->{DEPTH};
+	return if $curDepth == $obj->{DEPTH};
 
-    my $xmid = $xmin + ($xmax - $xmin) / 2;
-    my $ymid = $ymin + ($ymax - $ymin) / 2;
+	my $xmid = $xmin + ($xmax - $xmin) / 2;
+	my $ymid = $ymin + ($ymax - $ymin) / 2;
 
-    # now segment in the following order (doesn't matter):
-    # top left, top right, bottom left, bottom right
-    $obj->_addLevel($xmin, $ymid, $xmid, $ymax,  # tl
-		    $curDepth + 1, 4 * $index + 1, $index);
-    $obj->_addLevel($xmid, $ymid, $xmax, $ymax,  # tr
-		    $curDepth + 1, 4 * $index + 2, $index);
-    $obj->_addLevel($xmin, $ymin, $xmid, $ymid,  # bl
-		    $curDepth + 1, 4 * $index + 3, $index);
-    $obj->_addLevel($xmid, $ymin, $xmax, $ymid,  # br
-		    $curDepth + 1, 4 * $index + 4, $index);
+	# now segment in the following order (doesn't matter):
+	# top left, top right, bottom left, bottom right
+
+	# tl
+	$obj->_addLevel($xmin, $ymid, $xmid, $ymax,
+		$curDepth + 1, 4 * $index + 1, $index);
+	# tr
+	$obj->_addLevel($xmid, $ymid, $xmax, $ymax,
+		$curDepth + 1, 4 * $index + 2, $index);
+
+	# bl
+	$obj->_addLevel($xmin, $ymin, $xmid, $ymid,
+		$curDepth + 1, 4 * $index + 3, $index);
+
+	# br
+	$obj->_addLevel($xmid, $ymin, $xmax, $ymid,
+		$curDepth + 1, 4 * $index + 4, $index);
 }
 
 ###############################
@@ -133,28 +142,27 @@ sub _addLevel {
 #
 ###############################
 
-sub add {
-    my ($self,
-	$objRef,
-	@coords,
-	) = @_;
+sub add
+{
+	my ($self, $objRef, @coords) = @_;
 
-    # assume that $objRef is unique.
-    # assume coords are (xmin, ymix, xmax, ymax).
+	# assume that $objRef is unique.
+	# assume coords are (xmin, ymix, xmax, ymax).
 
-    # modify coords according to window.
-    @coords = $self->_adjustCoords(@coords);
+	# modify coords according to window.
+	@coords = $self->_adjustCoords(@coords);
 
-    ($coords[0], $coords[2]) = ($coords[2], $coords[0]) if
-	$coords[2] < $coords[0];
-    ($coords[1], $coords[3]) = ($coords[3], $coords[1]) if
-	$coords[3] < $coords[1];
+	($coords[0], $coords[2]) = ($coords[2], $coords[0])
+		if $coords[2] < $coords[0];
 
-    $self->_addObjToChild(
-			  0,        # current index
-			  $objRef,
-			  @coords,
-			  );
+	($coords[1], $coords[3]) = ($coords[3], $coords[1])
+		if $coords[3] < $coords[1];
+
+	$self->_addObjToChild(
+		0,    # current index
+		$objRef,
+		@coords,
+	);
 }
 
 ###############################
@@ -170,41 +178,37 @@ sub add {
 #
 ###############################
 
-sub _addObjToChild {
-    my ($self,
-	$index,
-	$objRef,
-	@coords,
-	) = @_;
+sub _addObjToChild
+{
+	my ($self, $index, $objRef, @coords) = @_;
 
-    # first check if obj overlaps current segment.
-    # if not, return.
-    my ($cxmin, $cymin, $cxmax, $cymax) = @{$self->{AREA}[$index]};
+	# first check if obj overlaps current segment.
+	# if not, return.
+	my ($cxmin, $cymin, $cxmax, $cymax) = @{$self->{AREA}[$index]};
 
-    return if
-	$coords[0] > $cxmax ||
-	$coords[2] < $cxmin ||
-	$coords[1] > $cymax ||
-	$coords[3] < $cymin;
+	return if
+		$coords[0] > $cxmax ||
+		$coords[2] < $cxmin ||
+		$coords[1] > $cymax ||
+		$coords[3] < $cymin;
 
-    # Only add the object to the segment if we are at the last
-    # level of the tree.
-    # Else, keep traversing down.
+	# Only add the object to the segment if we are at the last
+	# level of the tree.
+	# Else, keep traversing down.
 
-    unless (@{$self->{CHILDREN}[$index]}) {
-	push @{$self->{OBJECTS}[$index]}  => $objRef;    # points from leaf to object
-	push @{$self->{BACKREF}{$objRef}} => $index;     # points from object to leaf
-
-    } else {
-	# Now, traverse down the hierarchy.
-	for my $child (@{$self->{CHILDREN}[$index]}) {
-	    $self->_addObjToChild(
-				  $child,
-				  $objRef,
-				  @coords,
-				  );
+	unless (@{$self->{CHILDREN}[$index]}) {
+		push @{$self->{OBJECTS}[$index]}  => $objRef;    # points from leaf to object
+		push @{$self->{BACKREF}{$objRef}} => $index;    # points from object to leaf
+	} else {
+		# Now, traverse down the hierarchy.
+		for my $child (@{$self->{CHILDREN}[$index]}) {
+			$self->_addObjToChild(
+				$child,
+				$objRef,
+				@coords,
+			);
+		}
 	}
-    }
 }
 
 ###############################
@@ -215,18 +219,17 @@ sub _addObjToChild {
 #
 ###############################
 
-sub delete {
-    my ($self,
-	$objRef,
-	) = @_;
+sub delete
+{
+	my ($self, $objRef) = @_;
 
-    return unless exists $self->{BACKREF}{$objRef};
+	return unless exists $self->{BACKREF}{$objRef};
 
-    for my $i (@{$self->{BACKREF}{$objRef}}) {
-	$self->{OBJECTS}[$i] = [ grep {$_ ne $objRef} @{$self->{OBJECTS}[$i]} ];
-    }
+	for my $i (@{$self->{BACKREF}{$objRef}}) {
+		$self->{OBJECTS}[$i] = [ grep {$_ ne $objRef} @{$self->{OBJECTS}[$i]} ];
+	}
 
-    delete $self->{BACKREF}{$objRef};
+	delete $self->{BACKREF}{$objRef};
 }
 
 ###############################
@@ -238,29 +241,29 @@ sub delete {
 #
 ###############################
 
-sub getEnclosedObjects {
-    my ($self,
-	@coords) = @_;
+sub getEnclosedObjects
+{
+	my ($self, @coords) = @_;
 
-    $self->{TEMP} = [];
+	$self->{TEMP} = [];
 
-    @coords = $self->_adjustCoords(@coords);
+	@coords = $self->_adjustCoords(@coords);
 
-    $self->_checkOverlap(
-			 0,   # current index
-			 @coords,
-			 );
+	$self->_checkOverlap(
+		0,    # current index
+		@coords,
+	);
 
-    # uniquify {TEMP}.
-    my %temp;
-    @temp{@{$self->{TEMP}}} = undef;
+	# uniquify {TEMP}.
+	my %temp;
+	@temp{@{$self->{TEMP}}} = undef;
 
-    # PS. I don't check explicitly if those objects
-    # are enclosed in the given area. They are just
-    # part of the segments that are enclosed in the
-    # given area. TBD.
+	# PS. I don't check explicitly if those objects
+	# are enclosed in the given area. They are just
+	# part of the segments that are enclosed in the
+	# given area. TBD.
 
-    return [keys %temp];
+	return [keys %temp];
 }
 
 ###############################
@@ -274,16 +277,17 @@ sub getEnclosedObjects {
 #
 ###############################
 
-sub _adjustCoords {
-    my ($self, @coords) = @_;
+sub _adjustCoords
+{
+	my ($self, @coords) = @_;
 
-    # modify coords according to window.
-    $_ = $self->{ORIGIN}[0] + $_ / $self->{SCALE}
+	# modify coords according to window.
+	$_ = $self->{ORIGIN}[0] + $_ / $self->{SCALE}
 	for $coords[0], $coords[2];
-    $_ = $self->{ORIGIN}[1] + $_ / $self->{SCALE}
+	$_ = $self->{ORIGIN}[1] + $_ / $self->{SCALE}
 	for $coords[1], $coords[3];
 
-    return @coords;
+	return @coords;
 }
 
 ###############################
@@ -299,33 +303,31 @@ sub _adjustCoords {
 #
 ###############################
 
-sub _checkOverlap {
-    my ($self,
-	$index,
-	@coords,
-	) = @_;
+sub _checkOverlap
+{
+	my ($self, $index, @coords) = @_;
 
-    # first check if obj overlaps current segment.
-    # if not, return.
-    my ($cxmin, $cymin, $cxmax, $cymax) = @{$self->{AREA}[$index]};
+	# first check if obj overlaps current segment.
+	# if not, return.
+	my ($cxmin, $cymin, $cxmax, $cymax) = @{$self->{AREA}[$index]};
 
-    return if
-	$coords[0] >= $cxmax ||
-	$coords[2] <= $cxmin ||
-	$coords[1] >= $cymax ||
-	$coords[3] <= $cymin;
+	return if
+		$coords[0] >= $cxmax ||
+		$coords[2] <= $cxmin ||
+		$coords[1] >= $cymax ||
+		$coords[3] <= $cymin;
 
-    unless (@{$self->{CHILDREN}[$index]}) {
-	push @{$self->{TEMP}} => @{$self->{OBJECTS}[$index]};
-    } else {
-	# Now, traverse down the hierarchy.
-	for my $child (@{$self->{CHILDREN}[$index]}) {
-	    $self->_checkOverlap(
-				 $child,
-				 @coords,
-				 );
+	unless (@{$self->{CHILDREN}[$index]}) {
+		push @{$self->{TEMP}} => @{$self->{OBJECTS}[$index]};
+	} else {
+		# Now, traverse down the hierarchy.
+		for my $child (@{$self->{CHILDREN}[$index]}) {
+			$self->_checkOverlap(
+				$child,
+				@coords,
+			);
+		}
 	}
-    }
 }
 
 ###############################
@@ -338,12 +340,13 @@ sub _checkOverlap {
 #
 ###############################
 
-sub setWindow {
-    my ($self, $sx, $sy, $s) = @_;
+sub setWindow
+{
+	my ($self, $sx, $sy, $s) = @_;
 
-    $self->{ORIGIN}[0] += $sx / $self->{SCALE};
-    $self->{ORIGIN}[1] += $sy / $self->{SCALE};
-    $self->{SCALE}     *= $s;
+	$self->{ORIGIN}[0] += $sx / $self->{SCALE};
+	$self->{ORIGIN}[1] += $sy / $self->{SCALE};
+	$self->{SCALE} *= $s;
 }
 
 ###############################
@@ -353,11 +356,12 @@ sub setWindow {
 #
 ###############################
 
-sub resetWindow {
-  my $self = shift;
+sub resetWindow
+{
+	my $self = shift;
 
-  $self->{ORIGIN}[$_] = 0 for 0 .. 1;
-  $self->{SCALE}      = 1;
+	$self->{ORIGIN}[$_] = 0 for 0 .. 1;
+	$self->{SCALE} = 1;
 }
 
 1;
