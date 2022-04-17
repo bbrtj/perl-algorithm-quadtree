@@ -1,6 +1,7 @@
 package Algorithm::QuadTree;
 
 use strict;
+use warnings;
 use Carp;
 
 our $VERSION = 0.1;
