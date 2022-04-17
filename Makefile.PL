@@ -5,8 +5,8 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
 	NAME => 'Algorithm::QuadTree',
-	VERSION_FROM => 'QuadTree.pm',
-	ABSTRACT_FROM => 'QuadTree.pm',
+	VERSION_FROM => 'lib/Algorithm/QuadTree.pm',
+	ABSTRACT_FROM => 'lib/Algorithm/QuadTree.pm',
 
 	AUTHOR => 'Ala Qumsieh <aaqumsieh@cpan.org>',
 	LICENSE => 'perl',
