@@ -97,13 +97,13 @@ sub _addLevel
 		$parent,
 	) = @_;
 
-	$obj->{AREA}	[$index] = [$xmin, $ymin, $xmax, $ymax];
-	$obj->{PARENT}  [$index] = $parent;
+	$obj->{AREA}[$index] = [$xmin, $ymin, $xmax, $ymax];
+	$obj->{PARENT}[$index] = $parent;
 	$obj->{CHILDREN}[$index] = [];
-	$obj->{OBJECTS} [$index] = [];
+	$obj->{OBJECTS}[$index] = [];
 
 	if (defined $parent) {
-	push @{$obj->{CHILDREN}[$parent]} => $index;
+		push @{$obj->{CHILDREN}[$parent]} => $index;
 	}
 
 	return if $curDepth == $obj->{DEPTH};
@@ -198,7 +198,7 @@ sub _addObjToChild
 	# Else, keep traversing down.
 
 	unless (@{$self->{CHILDREN}[$index]}) {
-		push @{$self->{OBJECTS}[$index]}  => $objRef;    # points from leaf to object
+		push @{$self->{OBJECTS}[$index]} => $objRef;    # points from leaf to object
 		push @{$self->{BACKREF}{$objRef}} => $index;    # points from object to leaf
 	} else {
 		# Now, traverse down the hierarchy.
@@ -285,9 +285,9 @@ sub _adjustCoords
 
 	# modify coords according to window.
 	$_ = $self->{ORIGIN}[0] + $_ / $self->{SCALE}
-	for $coords[0], $coords[2];
+		for $coords[0], $coords[2];
 	$_ = $self->{ORIGIN}[1] + $_ / $self->{SCALE}
-	for $coords[1], $coords[3];
+		for $coords[1], $coords[3];
 
 	return @coords;
 }
