@@ -224,7 +224,7 @@ sub delete {
     return unless exists $self->{BACKREF}{$objRef};
 
     for my $i (@{$self->{BACKREF}{$objRef}}) {
-	$self->{OBJECTS}[$i] = grep {$_ ne $objRef} @{$self->{OBJECTS}[$i]};
+	$self->{OBJECTS}[$i] = [ grep {$_ ne $objRef} @{$self->{OBJECTS}[$i]} ];
     }
 
     delete $self->{BACKREF}{$objRef};
