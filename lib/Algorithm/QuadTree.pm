@@ -5,8 +5,6 @@ use Carp;
 
 our $VERSION = 0.1;
 
-1;
-
 ###############################
 #
 # sub new() - constructor
@@ -360,6 +358,8 @@ sub resetWindow {
   $self->{ORIGIN}[$_] = 0 for 0 .. 1;
   $self->{SCALE}      = 1;
 }
+
+1;
 
 __END__
 
