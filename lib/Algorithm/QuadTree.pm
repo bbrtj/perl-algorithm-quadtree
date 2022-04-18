@@ -28,15 +28,9 @@ sub new
 {
 	my $self  = shift;
 	my $class = ref($self) || $self;
-
-	my $obj = bless {} => $class;
-
-	$obj->{BACKREF} = {};
-	$obj->{OBJECTS} = [];
-	$obj->{ORIGIN} = [0, 0];
-	$obj->{SCALE} = 1;
-
 	my %args = @_;
+
+	my $obj = bless {}, $class;
 
 	for my $arg (qw/xmin ymin xmax ymax depth/) {
 		unless (exists $args{"-$arg"}) {
@@ -47,33 +41,18 @@ sub new
 		$obj->{uc $arg} = $args{"-$arg"};
 	}
 
-	$obj->_segment;
-
-	return $obj;
-}
-
-###############################
-#
-# sub _segment() - private method
-#
-# This method does the actual segmentation
-# and stores everything internally.
-#
-###############################
-
-sub _segment
-{
-	my $obj = shift;
-
-	$obj->_addLevel(
+	$obj->{BACKREF} = {};
+	$obj->{ORIGIN} = [0, 0];
+	$obj->{SCALE} = 1;
+	$obj->{ROOT} = $obj->_addLevel(
 		$obj->{XMIN},
 		$obj->{YMIN},
 		$obj->{XMAX},
 		$obj->{YMAX},
-		1,    # current depth
-		0,    # current index
+		1    # current depth
 	);
 
+	return $obj;
 }
 
 ###############################
@@ -88,53 +67,52 @@ sub _segment
 sub _addLevel
 {
 	my (
-		$obj,
+		$self,
 		$xmin, $ymin,
 		$xmax, $ymax,
-		$curDepth,
-		$index
+		$curDepth
 	) = @_;
 
-	$obj->{AREA}[$index] = [$xmin, $ymin, $xmax, $ymax];
-	$obj->{CHILDREN}[$index] = [];
-	$obj->{OBJECTS}[$index] = [];
+	my $node = {
+		AREA => [$xmin, $ymin, $xmax, $ymax],
+		OBJECTS => [],
+	};
 
-	if ($curDepth < $obj->{DEPTH}) {
+	if ($curDepth < $self->{DEPTH}) {
 		my $xmid = $xmin + ($xmax - $xmin) / 2;
 		my $ymid = $ymin + ($ymax - $ymin) / 2;
-		my $base_child_index = $index * 4;
 
 		# now segment in the following order (doesn't matter):
 		# top left, top right, bottom left, bottom right
-		$obj->{CHILDREN}[$index] = [
+		$node->{CHILDREN} = [
 
 			# tl
-			$obj->_addLevel(
+			$self->_addLevel(
 				$xmin, $ymid, $xmid, $ymax,
-				$curDepth + 1, $base_child_index + 1
+				$curDepth + 1
 			),
 
 			# tr
-			$obj->_addLevel(
+			$self->_addLevel(
 				$xmid, $ymid, $xmax, $ymax,
-				$curDepth + 1, $base_child_index + 2
+				$curDepth + 1
 			),
 
 			# bl
-			$obj->_addLevel(
+			$self->_addLevel(
 				$xmin, $ymin, $xmid, $ymid,
-				$curDepth + 1, $base_child_index + 3
+				$curDepth + 1
 			),
 
 			# br
-			$obj->_addLevel(
+			$self->_addLevel(
 				$xmid, $ymin, $xmax, $ymid,
-				$curDepth + 1, $base_child_index + 4
+				$curDepth + 1
 			),
 		];
 	}
 
-	return $index;
+	return $node;
 }
 
 ###############################
@@ -167,7 +145,7 @@ sub add
 		if $coords[3] < $coords[1];
 
 	$self->_addObjToChild(
-		0,    # current index
+		$self->{ROOT},
 		$objRef,
 		@coords,
 	);
@@ -188,11 +166,11 @@ sub add
 
 sub _addObjToChild
 {
-	my ($self, $index, $objRef, @coords) = @_;
+	my ($self, $current, $objRef, @coords) = @_;
 
 	# first check if obj overlaps current segment.
 	# if not, return.
-	my ($cxmin, $cymin, $cxmax, $cymax) = @{$self->{AREA}[$index]};
+	my ($cxmin, $cymin, $cxmax, $cymax) = @{$current->{AREA}};
 
 	return if
 		$coords[0] > $cxmax ||
@@ -204,18 +182,18 @@ sub _addObjToChild
 	# level of the tree.
 	# Else, keep traversing down.
 
-	unless (@{$self->{CHILDREN}[$index]}) {
-		push @{$self->{OBJECTS}[$index]} => $objRef;    # points from leaf to object
-		push @{$self->{BACKREF}{$objRef}} => $index;    # points from object to leaf
-	} else {
+	if ($current->{CHILDREN}) {
 		# Now, traverse down the hierarchy.
-		for my $child (@{$self->{CHILDREN}[$index]}) {
+		for my $child (@{$current->{CHILDREN}}) {
 			$self->_addObjToChild(
 				$child,
 				$objRef,
 				@coords,
 			);
 		}
+	} else {
+		push @{$current->{OBJECTS}}, $objRef;    # points from leaf to object
+		push @{$self->{BACKREF}{$objRef}}, $current;    # points from object to leaf
 	}
 }
 
@@ -233,8 +211,8 @@ sub delete
 
 	return unless exists $self->{BACKREF}{$objRef};
 
-	for my $i (@{$self->{BACKREF}{$objRef}}) {
-		$self->{OBJECTS}[$i] = [ grep {$_ ne $objRef} @{$self->{OBJECTS}[$i]} ];
+	for my $node (@{$self->{BACKREF}{$objRef}}) {
+		$node->{OBJECTS} = [ grep {$_ ne $objRef} @{$node->{OBJECTS}} ];
 	}
 
 	delete $self->{BACKREF}{$objRef};
@@ -253,26 +231,25 @@ sub getEnclosedObjects
 {
 	my ($self, @coords) = @_;
 
-	$self->{TEMP} = [];
-
 	@coords = $self->_adjustCoords(@coords)
 		unless $self->{SCALE} == 1;
 
+	my @results;
 	$self->_checkOverlap(
-		0,    # current index
+		$self->{ROOT},
+		\@results,
 		@coords,
 	);
 
-	# uniquify {TEMP}.
-	my %temp;
-	@temp{@{$self->{TEMP}}} = undef;
+	# uniq results
+	my %temp = map { $_ => $_ } @results;
 
 	# PS. I don't check explicitly if those objects
 	# are enclosed in the given area. They are just
 	# part of the segments that are enclosed in the
 	# given area. TBD.
 
-	return [keys %temp];
+	return [values %temp];
 }
 
 ###############################
@@ -307,18 +284,18 @@ sub _adjustCoords
 # the specified tree segment. If not, nothing happens.
 # If it does overlap, then it is called recuresively
 # on all the segment's children. If the segment is a
-# leaf, then its associated objects are pushed onto
-# a temporary array for later access.
+# leaf, then its associated objects are saved into an
+# out reference.
 #
 ###############################
 
 sub _checkOverlap
 {
-	my ($self, $index, @coords) = @_;
+	my ($self, $current, $results, @coords) = @_;
 
 	# first check if obj overlaps current segment.
 	# if not, return.
-	my ($cxmin, $cymin, $cxmax, $cymax) = @{$self->{AREA}[$index]};
+	my ($cxmin, $cymin, $cxmax, $cymax) = @{$current->{AREA}};
 
 	return if
 		$coords[0] >= $cxmax ||
@@ -326,16 +303,17 @@ sub _checkOverlap
 		$coords[1] >= $cymax ||
 		$coords[3] <= $cymin;
 
-	unless (@{$self->{CHILDREN}[$index]}) {
-		push @{$self->{TEMP}} => @{$self->{OBJECTS}[$index]};
-	} else {
+	if ($current->{CHILDREN}) {
 		# Now, traverse down the hierarchy.
-		for my $child (@{$self->{CHILDREN}[$index]}) {
+		for my $child (@{$current->{CHILDREN}}) {
 			$self->_checkOverlap(
 				$child,
+				$results,
 				@coords,
 			);
 		}
+	} else {
+		push @{$results}, @{$current->{OBJECTS}};
 	}
 }
 
