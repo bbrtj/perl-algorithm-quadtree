@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Carp;
 
-our $VERSION = 0.1;
+our $VERSION = '0.1';
 
 ###############################
 #
@@ -72,7 +72,6 @@ sub _segment
 		$obj->{YMAX},
 		1,    # current depth
 		0,    # current index
-		undef,    # parent index
 	);
 
 }
@@ -93,41 +92,49 @@ sub _addLevel
 		$xmin, $ymin,
 		$xmax, $ymax,
 		$curDepth,
-		$index,
-		$parent,
+		$index
 	) = @_;
 
 	$obj->{AREA}[$index] = [$xmin, $ymin, $xmax, $ymax];
-	$obj->{PARENT}[$index] = $parent;
 	$obj->{CHILDREN}[$index] = [];
 	$obj->{OBJECTS}[$index] = [];
 
-	if (defined $parent) {
-		push @{$obj->{CHILDREN}[$parent]} => $index;
+	if ($curDepth < $obj->{DEPTH}) {
+		my $xmid = $xmin + ($xmax - $xmin) / 2;
+		my $ymid = $ymin + ($ymax - $ymin) / 2;
+		my $base_child_index = $index * 4;
+
+		# now segment in the following order (doesn't matter):
+		# top left, top right, bottom left, bottom right
+		$obj->{CHILDREN}[$index] = [
+
+			# tl
+			$obj->_addLevel(
+				$xmin, $ymid, $xmid, $ymax,
+				$curDepth + 1, $base_child_index + 1
+			),
+
+			# tr
+			$obj->_addLevel(
+				$xmid, $ymid, $xmax, $ymax,
+				$curDepth + 1, $base_child_index + 2
+			),
+
+			# bl
+			$obj->_addLevel(
+				$xmin, $ymin, $xmid, $ymid,
+				$curDepth + 1, $base_child_index + 3
+			),
+
+			# br
+			$obj->_addLevel(
+				$xmid, $ymin, $xmax, $ymid,
+				$curDepth + 1, $base_child_index + 4
+			),
+		];
 	}
 
-	return if $curDepth == $obj->{DEPTH};
-
-	my $xmid = $xmin + ($xmax - $xmin) / 2;
-	my $ymid = $ymin + ($ymax - $ymin) / 2;
-
-	# now segment in the following order (doesn't matter):
-	# top left, top right, bottom left, bottom right
-
-	# tl
-	$obj->_addLevel($xmin, $ymid, $xmid, $ymax,
-		$curDepth + 1, 4 * $index + 1, $index);
-	# tr
-	$obj->_addLevel($xmid, $ymid, $xmax, $ymax,
-		$curDepth + 1, 4 * $index + 2, $index);
-
-	# bl
-	$obj->_addLevel($xmin, $ymin, $xmid, $ymid,
-		$curDepth + 1, 4 * $index + 3, $index);
-
-	# br
-	$obj->_addLevel($xmid, $ymin, $xmax, $ymid,
-		$curDepth + 1, 4 * $index + 4, $index);
+	return $index;
 }
 
 ###############################
