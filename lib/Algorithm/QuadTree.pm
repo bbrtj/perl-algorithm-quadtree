@@ -122,7 +122,7 @@ sub _loopOnNodesInCircle
 
 		push @nodes, $current
 			if ($coords[0] - $cx) ** 2 + ($coords[1] - $cy) ** 2
-			< $radius_squared;
+			<= $radius_squared;
 	}
 
 	return \@nodes;
@@ -140,10 +140,10 @@ sub _loopOnNodesInRectangle
 
 		# first check if obj overlaps current segment.
 		next if
-			$coords[0] >= $current->{AREA}[2] ||
-			$coords[2] <= $current->{AREA}[0] ||
-			$coords[1] >= $current->{AREA}[3] ||
-			$coords[3] <= $current->{AREA}[1];
+			$coords[0] > $current->{AREA}[2] ||
+			$coords[2] < $current->{AREA}[0] ||
+			$coords[1] > $current->{AREA}[3] ||
+			$coords[3] < $current->{AREA}[1];
 
 		if ($current->{CHILDREN}) {
 			push @loopargs, @{$current->{CHILDREN}};

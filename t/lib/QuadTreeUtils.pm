@@ -12,6 +12,7 @@ our @EXPORT = qw(
 	loop_zones
 	init_zones
 	check_array
+	zone_bound
 	zone_start
 	zone_end
 	AREA_SIZE
@@ -32,19 +33,25 @@ sub _zone_rand
 
 	# do not inculde 0 in the randomness since we don't want to "touch" another zone
 	my $rand = rand(0.99) + 0.01 + $higher;
-	return zone_start($zone_number) + $rand * AREA_SIZE / zones_per_dimension() / 2;
+	return zone_bound($zone_number) + $rand * AREA_SIZE / zones_per_dimension() / 2;
 }
 
-sub zone_start
+sub zone_bound
 {
 	my ($zone_number) = @_;
 	return $zone_number * AREA_SIZE / zones_per_dimension;
 }
 
+sub zone_start
+{
+	my ($zone_number) = @_;
+	return zone_bound($zone_number) + 0.0001;
+}
+
 sub zone_end
 {
 	my ($zone_number) = @_;
-	return zone_start($zone_number + 1) - 0.0001;
+	return zone_bound($zone_number + 1) - 0.0001;
 }
 
 sub object_name
