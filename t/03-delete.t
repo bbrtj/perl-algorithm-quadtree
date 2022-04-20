@@ -35,5 +35,19 @@ subtest 'we should be able to delete a node' => sub {
 	is scalar @$list, zones_per_dimension() ** 2 * 2 - 1, 'object count ok';
 };
 
+subtest 'we should be able to clear a tree' => sub {
+	$qt->clear;
+
+	# get all objects
+	my $list = $qt->getEnclosedObjects(
+		0,
+		0,
+		AREA_SIZE,
+		AREA_SIZE,
+	);
+
+	is scalar @$list, 0, 'object count ok';
+};
+
 done_testing;
 
