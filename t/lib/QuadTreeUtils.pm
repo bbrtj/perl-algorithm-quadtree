@@ -99,11 +99,12 @@ sub init_zones
 
 sub check_array
 {
-	my ($list, $wanted_list) = @_;
+	my ($list, $wanted_list, $more_info) = @_;
+	$more_info ||= '';
 
 	$list = [sort @$list];
 	$wanted_list = [sort @$wanted_list];
-	is_deeply $list, $wanted_list, 'returned array ok';
+	is_deeply $list, $wanted_list, "returned array ok$more_info";
 }
 
 1;
