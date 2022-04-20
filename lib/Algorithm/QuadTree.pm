@@ -8,7 +8,9 @@ our $VERSION = '0.1';
 
 ###############################
 #
-# sub new() - constructor
+# Creating a new QuadTree objects automatically
+# segments the given area into quadtrees of the
+# specified depth.
 #
 # Arguments are a hash:
 #
@@ -17,10 +19,6 @@ our $VERSION = '0.1';
 # -ymin  => minimum y value
 # -ymax  => maximum y value
 # -depth => depth of tree
-#
-# Creating a new QuadTree objects automatically
-# segments the given area into quadtrees of the
-# specified depth.
 #
 ###############################
 
@@ -45,187 +43,209 @@ sub new
 	$obj->{ORIGIN} = [0, 0];
 	$obj->{SCALE} = 1;
 	$obj->{ROOT} = $obj->_addLevel(
+		1,    #current depth
 		$obj->{XMIN},
 		$obj->{YMIN},
 		$obj->{XMAX},
 		$obj->{YMAX},
-		1    # current depth
 	);
 
 	return $obj;
 }
 
-###############################
-#
-# sub _addLevel() - private method
-#
-# This method segments a given area
-# and adds a level to the tree.
-#
-###############################
-
+# recursive method which adds levels to the quadtree
 sub _addLevel
 {
-	my (
-		$self,
-		$xmin, $ymin,
-		$xmax, $ymax,
-		$curDepth
-	) = @_;
-
+	my ($self, $depth, @coords) = @_;
 	my $node = {
-		AREA => [$xmin, $ymin, $xmax, $ymax],
-		OBJECTS => [],
+		AREA => \@coords,
 	};
 
-	if ($curDepth < $self->{DEPTH}) {
+	if ($depth < $self->{DEPTH}) {
+		my ($xmin, $ymin, $xmax, $ymax) = @coords;
 		my $xmid = $xmin + ($xmax - $xmin) / 2;
 		my $ymid = $ymin + ($ymax - $ymin) / 2;
+		$depth += 1;
 
-		# now segment in the following order (doesn't matter):
+		# segment in the following order:
 		# top left, top right, bottom left, bottom right
 		$node->{CHILDREN} = [
-
-			# tl
-			$self->_addLevel(
-				$xmin, $ymid, $xmid, $ymax,
-				$curDepth + 1
-			),
-
-			# tr
-			$self->_addLevel(
-				$xmid, $ymid, $xmax, $ymax,
-				$curDepth + 1
-			),
-
-			# bl
-			$self->_addLevel(
-				$xmin, $ymin, $xmid, $ymid,
-				$curDepth + 1
-			),
-
-			# br
-			$self->_addLevel(
-				$xmid, $ymin, $xmax, $ymid,
-				$curDepth + 1
-			),
+			$self->_addLevel($depth, $xmin, $ymid, $xmid, $ymax),
+			$self->_addLevel($depth, $xmid, $ymid, $xmax, $ymax),
+			$self->_addLevel($depth, $xmin, $ymin, $xmid, $ymid),
+			$self->_addLevel($depth, $xmid, $ymin, $xmax, $ymid),
 		];
+	}
+	else {
+		# leaves must have empty aref in objects
+		$node->{OBJECTS} = [];
 	}
 
 	return $node;
 }
 
-###############################
-#
-# sub add() - public method
-#
-# This method adds an object to the tree.
-# The arguments are a unique tag to identify
-# the object, and the bounding box of the object.
-# It automatically assigns the proper quadtree
-# sections to each object.
-#
-###############################
+# this private method executes $code on every leaf node of the tree
+# which is within the circular shape
+sub _loopOnNodesInCircle
+{
+	my ($self, @coords) = @_;
+
+	# this is a bounding box of a circle
+	# it will help us filter out all the far away shapes
+	my @box = (
+		$coords[0] - $coords[2],
+		$coords[1] - $coords[2],
+		$coords[0] + $coords[2],
+		$coords[1] + $coords[2],
+	);
+
+	# avoid squaring the radius on each iteration
+	my $radius_squared = $coords[2] ** 2;
+
+	my @nodes;
+	for my $current (@{$self->_loopOnNodesInRectangle(@box)}) {
+		my ($cxmin, $cymin, $cxmax, $cymax) = @{$current->{AREA}};
+
+		my $cx = $coords[0] < $cxmin
+			? $cxmin
+			: $coords[0] > $cxmax
+				? $cxmax
+				: $coords[0]
+		;
+
+		my $cy = $coords[1] < $cymin
+			? $cymin
+			: $coords[1] > $cymax
+				? $cymax
+				: $coords[1]
+		;
+
+		push @nodes, $current
+			if ($coords[0] - $cx) ** 2 + ($coords[1] - $cy) ** 2
+			< $radius_squared;
+	}
+
+	return \@nodes;
+}
+
+# this private method executes $code on every leaf node of the tree
+# which is within the rectangular shape
+sub _loopOnNodesInRectangle
+{
+	my ($self, @coords) = @_;
+
+	my @nodes;
+	my @loopargs = $self->{ROOT};
+	for my $current (@loopargs) {
+
+		# first check if obj overlaps current segment.
+		next if
+			$coords[0] >= $current->{AREA}[2] ||
+			$coords[2] <= $current->{AREA}[0] ||
+			$coords[1] >= $current->{AREA}[3] ||
+			$coords[3] <= $current->{AREA}[1];
+
+		if ($current->{CHILDREN}) {
+			push @loopargs, @{$current->{CHILDREN}};
+		} else {
+			# segment is a leaf and overlaps the obj
+			push @nodes, $current;
+		}
+	}
+
+	return \@nodes;
+}
+
+# choose the right function based on argument count
+# first argument is always $self, the rest are coords
+sub _loopOnNodes
+{
+	goto \&_loopOnNodesInCircle if @_ == 4;
+	goto \&_loopOnNodesInRectangle;
+}
+
+sub _addObject
+{
+	my ($self, $object, @coords) = @_;
+
+	for my $node (@{$self->_loopOnNodes(@coords)}) {
+		push @{$node->{OBJECTS}}, $object;
+		push @{$self->{BACKREF}{$object}}, $node;
+	}
+}
+
+sub _checkOverlap
+{
+	my ($self, @coords) = @_;
+
+	# map returned nodes to an array containing all of
+	# their objects
+	return [
+		map {
+			@{$_->{OBJECTS}}
+		} @{$self->_loopOnNodes(@coords)}
+	];
+}
+
+# modify coords according to window
+sub _adjustCoords
+{
+	my ($self, @coords) = @_;
+
+	if (@coords == 4) {
+		# rectangle
+
+		$_ = $self->{ORIGIN}[0] + $_ / $self->{SCALE}
+			for $coords[0], $coords[2];
+		$_ = $self->{ORIGIN}[1] + $_ / $self->{SCALE}
+			for $coords[1], $coords[3];
+	}
+	elsif (@coords == 3) {
+		# circle
+
+		$coords[0] = $self->{ORIGIN}[0] + $coords[0] / $self->{SCALE};
+		$coords[1] = $self->{ORIGIN}[1] + $coords[1] / $self->{SCALE};
+		$coords[2] /= $self->{SCALE};
+	}
+
+	return @coords;
+}
 
 sub add
 {
-	my ($self, $objRef, @coords) = @_;
+	my ($self, $object, @coords) = @_;
 
-	# assume that $objRef is unique.
-	# assume coords are (xmin, ymix, xmax, ymax).
+	# assume that $object is unique.
+	# assume coords are (xmin, ymix, xmax, ymax) or (centerx, centery, radius)
 
-	# modify coords according to window.
 	@coords = $self->_adjustCoords(@coords)
 		unless $self->{SCALE} == 1;
 
-	($coords[0], $coords[2]) = ($coords[2], $coords[0])
-		if $coords[2] < $coords[0];
+	# if the object is rectangular, make sure the lower coordinate is always
+	# the first one
+	if (@coords == 4) {
+		($coords[0], $coords[2]) = ($coords[2], $coords[0])
+			if $coords[2] < $coords[0];
 
-	($coords[1], $coords[3]) = ($coords[3], $coords[1])
-		if $coords[3] < $coords[1];
-
-	$self->_addObjToChild(
-		$self->{ROOT},
-		$objRef,
-		@coords,
-	);
-}
-
-###############################
-#
-# sub _addObjToChild() - private method
-#
-# This method is used internally. Given
-# a tree segment, an object and its area,
-# it checks to see whether the object is to
-# be included in the segment or not.
-# The object is not included if it does not
-# overlap the segment.
-#
-###############################
-
-sub _addObjToChild
-{
-	my ($self, $current, $objRef, @coords) = @_;
-
-	# first check if obj overlaps current segment.
-	# if not, return.
-	my ($cxmin, $cymin, $cxmax, $cymax) = @{$current->{AREA}};
-
-	return if
-		$coords[0] > $cxmax ||
-		$coords[2] < $cxmin ||
-		$coords[1] > $cymax ||
-		$coords[3] < $cymin;
-
-	# Only add the object to the segment if we are at the last
-	# level of the tree.
-	# Else, keep traversing down.
-
-	if ($current->{CHILDREN}) {
-		# Now, traverse down the hierarchy.
-		for my $child (@{$current->{CHILDREN}}) {
-			$self->_addObjToChild(
-				$child,
-				$objRef,
-				@coords,
-			);
-		}
-	} else {
-		push @{$current->{OBJECTS}}, $objRef;    # points from leaf to object
-		push @{$self->{BACKREF}{$objRef}}, $current;    # points from object to leaf
+		($coords[1], $coords[3]) = ($coords[3], $coords[1])
+			if $coords[3] < $coords[1];
 	}
-}
 
-###############################
-#
-# sub delete() - public method
-#
-# This method deletes an object from the tree.
-#
-###############################
+	$self->_addObject($object, @coords);
+}
 
 sub delete
 {
-	my ($self, $objRef) = @_;
+	my ($self, $object) = @_;
 
-	return unless exists $self->{BACKREF}{$objRef};
+	return unless exists $self->{BACKREF}{$object};
 
-	for my $node (@{$self->{BACKREF}{$objRef}}) {
-		$node->{OBJECTS} = [ grep {$_ ne $objRef} @{$node->{OBJECTS}} ];
+	for my $node (@{$self->{BACKREF}{$object}}) {
+		$node->{OBJECTS} = [ grep {$_ ne $object} @{$node->{OBJECTS}} ];
 	}
 
-	delete $self->{BACKREF}{$objRef};
+	delete $self->{BACKREF}{$object};
 }
-
-###############################
-#
-# sub getEnclosedObjects() - public method
-#
-# This method takes an area, and returns all objects
-# enclosed in that area.
-#
-###############################
 
 sub getEnclosedObjects
 {
@@ -234,12 +254,7 @@ sub getEnclosedObjects
 	@coords = $self->_adjustCoords(@coords)
 		unless $self->{SCALE} == 1;
 
-	my @results;
-	$self->_checkOverlap(
-		$self->{ROOT},
-		\@results,
-		@coords,
-	);
+	my @results = @{$self->_checkOverlap(@coords)};
 
 	# uniq results
 	my %temp = map { $_ => $_ } @results;
@@ -249,83 +264,10 @@ sub getEnclosedObjects
 	# part of the segments that are enclosed in the
 	# given area. TBD.
 
+	# get values of %temp, since keys are strings
+	# even if they were references originally
 	return [values %temp];
 }
-
-###############################
-#
-# sub _adjustCoords() - private method
-#
-# This method adjusts the given coordinates
-# according to the stored window. This is used
-# when we 'zoom in' to avoid searching in areas
-# that are not visible in the canvas.
-#
-###############################
-
-sub _adjustCoords
-{
-	my ($self, @coords) = @_;
-
-	# modify coords according to window.
-	$_ = $self->{ORIGIN}[0] + $_ / $self->{SCALE}
-		for $coords[0], $coords[2];
-	$_ = $self->{ORIGIN}[1] + $_ / $self->{SCALE}
-		for $coords[1], $coords[3];
-
-	return @coords;
-}
-
-###############################
-#
-# sub _checkOverlap() - private method
-#
-# This method checks if the given coordinates overlap
-# the specified tree segment. If not, nothing happens.
-# If it does overlap, then it is called recuresively
-# on all the segment's children. If the segment is a
-# leaf, then its associated objects are saved into an
-# out reference.
-#
-###############################
-
-sub _checkOverlap
-{
-	my ($self, $current, $results, @coords) = @_;
-
-	# first check if obj overlaps current segment.
-	# if not, return.
-	my ($cxmin, $cymin, $cxmax, $cymax) = @{$current->{AREA}};
-
-	return if
-		$coords[0] >= $cxmax ||
-		$coords[2] <= $cxmin ||
-		$coords[1] >= $cymax ||
-		$coords[3] <= $cymin;
-
-	if ($current->{CHILDREN}) {
-		# Now, traverse down the hierarchy.
-		for my $child (@{$current->{CHILDREN}}) {
-			$self->_checkOverlap(
-				$child,
-				$results,
-				@coords,
-			);
-		}
-	} else {
-		push @{$results}, @{$current->{OBJECTS}};
-	}
-}
-
-###############################
-#
-# sub setWindow() - public method
-#
-# This method takes an area as input, and
-# sets it as the active window. All new
-# calls to any method will refer to that area.
-#
-###############################
 
 sub setWindow
 {
@@ -335,13 +277,6 @@ sub setWindow
 	$self->{ORIGIN}[1] += $sy / $self->{SCALE};
 	$self->{SCALE} *= $s;
 }
-
-###############################
-#
-# sub setWindow() - public method
-# This resets the window.
-#
-###############################
 
 sub resetWindow
 {
