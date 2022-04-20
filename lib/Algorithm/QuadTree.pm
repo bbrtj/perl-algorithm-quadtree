@@ -286,6 +286,18 @@ sub resetWindow
 	$self->{SCALE} = 1;
 }
 
+sub clear
+{
+	my $self = shift;
+
+	for my $key (keys %{$self->{BACKREF}}) {
+		for my $node (@{$self->{BACKREF}{$key}}) {
+			$node->{OBJECTS} = [];
+		}
+		$self->{BACKREF}{$key} = [];
+	}
+}
+
 1;
 
 __END__
