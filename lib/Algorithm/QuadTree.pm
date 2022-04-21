@@ -232,6 +232,8 @@ sub add
 	}
 
 	$self->_addObject($object, @coords);
+
+	return;
 }
 
 sub delete
@@ -245,6 +247,22 @@ sub delete
 	}
 
 	delete $self->{BACKREF}{$object};
+
+	return;
+}
+
+sub clear
+{
+	my $self = shift;
+
+	for my $key (keys %{$self->{BACKREF}}) {
+		for my $node (@{$self->{BACKREF}{$key}}) {
+			$node->{OBJECTS} = [];
+		}
+	}
+	$self->{BACKREF} = {};
+
+	return;
 }
 
 sub getEnclosedObjects
@@ -284,18 +302,6 @@ sub resetWindow
 
 	$self->{ORIGIN}[$_] = 0 for 0 .. 1;
 	$self->{SCALE} = 1;
-}
-
-sub clear
-{
-	my $self = shift;
-
-	for my $key (keys %{$self->{BACKREF}}) {
-		for my $node (@{$self->{BACKREF}{$key}}) {
-			$node->{OBJECTS} = [];
-		}
-		$self->{BACKREF}{$key} = [];
-	}
 }
 
 1;
