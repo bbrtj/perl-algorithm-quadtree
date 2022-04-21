@@ -21,6 +21,10 @@ our @EXPORT = qw(
 our $DEPTH = 3;
 use constant AREA_SIZE => 10;
 
+################################################################
+# Some utilities helpful when testing the behavior of a quadtree
+################################################################
+
 sub zones_per_dimension
 {
 	return 2 ** ($DEPTH - 1);
