@@ -357,10 +357,7 @@ each of which is represented by one child node. Each of these children is now
 treated as a parent, and its area is recursively split up into 4 equal areas,
 and so on up to a desired depth.
 
-Here is a somewhat crude diagram (those diagrams might not appear unless
-you run pod2text):
-
-=begin text
+Here is a somewhat crude diagram:
 
                    ------------------------------
                   |AAA|AAB|       |              |
@@ -381,31 +378,25 @@ you run pod2text):
                   |               |              |
                    ------------------------------
 
-=end text
-
 Which corresponds to the following quadtree:
 
-=begin text
-
-                    __ROOT_
-                   /  / \  \
-                  /  /   \  \
-            _____A_  B   C   D
-           /  / \  \
-          /  /   \  \
-    _____AA  AB  AC  AD
-   /  / \  \
-  /  /   \  \
-AAA AAB AAC AAD
-
-=end text
+                        __ROOT_
+                       /  / \  \
+                      /  /   \  \
+                _____A_  B   C   D
+               /  / \  \
+              /  /   \  \
+        _____AA  AB  AC  AD
+       /  / \  \
+      /  /   \  \
+    AAA AAB AAC AAD
 
 In the above diagrams I show only the nodes through the first branch of
 each level. The same structure exists under each node. This quadtree has a
 depth of 4.
 
 Each object in the map is assigned to the nodes that it intersects. For example,
-if we have a rectangular object that overlaps regions I<AAA> and I<AAC>, it will be
+if we have an object that overlaps regions I<AAA> and I<AAC>, it will be
 assigned to the nodes I<ROOT>, I<A>, I<AA>, I<AAA> and I<AAC>. Now, suppose we
 want to find all the objects that intersect a given area. Instead of checking all
 objects, we check to see which children of the ROOT node intersect the area. For
@@ -452,26 +443,54 @@ The depth of the quadtree.
 
 =back
 
-=item I<$qt>-E<gt>B<add>(ID, x0, y0, x1, y1)
+=item I<$qt>-E<gt>B<add>(object, x0, y0, x1, y1)
 
-This method is used to add objects to the tree. It has to be called for every
-object in the map so that it can properly assigned to the correct tree nodes.
-The first argument is a I<unique> ID for the object. The remaining 4 arguments
-define the outline of the object. This method will recursively traverse the
-tree and add the object to the nodes that it overlaps with.
+This method is used to add objects in shape of rectangles to the tree. It has
+to be called for every object in the map so that it can properly assigned to
+the correct tree nodes. The first argument is an object reference or an
+I<unique> ID for the object. The remaining 4 arguments define the outline of
+the object (edge coordinates: left, bottom, right, top). This method will
+traverse the tree and add the object to the nodes that it overlaps with.
 
-NOTE: The method does I<NOT> check if the ID is unique or not. It is up to you
-to make sure it is.
+NOTE: The method does B<NOT> check if the object references or IDs passed are
+unique or not. It is up to you to make sure they are.
 
-=item I<$qt>-E<gt>B<delete>(ID)
+=item I<$qt>-E<gt>B<add>(object, x, y, radius)
 
-This method deletes the object specified by the given ID, and unassigns it from
-the tree nodes it was assigned to before.
+Same as above, but for circular objects. C<x> and C<y> are coordinates of object's center.
+
+NOTE: this method called with three coordinates treats the object as a circle,
+and with four coordinates as a rectangle. You don't have to worry about
+potential empty / undef values in your coordinates, as long as the number of
+arguments is right. It will never treat C<< ->add('obj', 1, 2, 3, undef) >> as a
+call to the circular version, and instead produce warnings about undef being
+treated as a number, hinting you about the problem.
 
 =item I<$qt>-E<gt>B<getEnclosedObjects>(x0, y0, x1, y1)
 
-This method returns an <anonymous list> of all the objects that are assigned
-to the nodes that overlap the given area.
+This method returns an B<array reference> of all the objects that are assigned
+to the nodes that overlap the given rectangular area. The objects will be
+returned in the exact form they were passed to C<< ->add >>.
+
+=item I<$qt>-E<gt>B<getEnclosedObjects>(x, y, radius)
+
+Same as above, but for circular areas. C<x> and C<y> are coordinates of area's center.
+
+NOTE: this method called with three coordinates treats the object as a circle,
+and with four coordinates as a rectangle. You don't have to worry about
+potential empty / undef values in your coordinates, as long as the number of
+arguments is right. It will never treat C<< ->getEnclosedObjects(1, 2, 3, undef) >>
+as a call to the circular version, and instead produce warnings about
+undef being treated as a number, hinting you about the problem.
+
+=item I<$qt>-E<gt>B<delete>(object)
+
+This method deletes the object from the tree.
+
+=item I<$qt>-E<gt>B<clear>()
+
+This method deletes all the objects from the tree. It allows to reuse the
+(expensive to compute) tree structure whenever the tree needs to be repopulated.
 
 =item I<$qt>-E<gt>B<setWindow>(x0, y0, scale)
 
@@ -488,10 +507,6 @@ NOTE: You are free, of course, to make the coordinate transformation yourself.
 This method resets the window region to the full map.
 
 =back
-
-=head1 BUGS
-
-None that I am aware of. Please let me know if you find any.
 
 =head1 AUTHORS
 
