@@ -374,6 +374,22 @@ This method resets the window region to the full map.
 
 =back
 
+=head2 Backends
+
+By default, the module uses L<Algorithm::QuadTree::PP>, which is the pure perl backend.
+
+If you install L<Algorithm::QuadTree::XS>, the module will load and use that
+instead. This behavior can be controlled by setting
+L<ALGORITHM_QUADTREE_BACKEND> environmental variable to the package name, which
+should be used as the backend.
+
+I<Note: the environmental variable must be present before loading Algorithm::QuadTree for the first time>
+
+	# will load pure perl backend regardless of XS availability
+	$ENV{ALGORITHM_QUADTREE_BACKEND} = 'Algorithm::QuadTree::PP';
+
+	use Algorithm::QuadTree;
+
 =head1 AUTHORS
 
 Ala Qumsieh I<aqumsieh@cpan.org>
