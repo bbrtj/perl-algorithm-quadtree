@@ -4,8 +4,6 @@ use strict;
 use warnings;
 use Exporter qw(import);
 
-our $VERSION = '0.2';
-
 our @EXPORT = qw(
 	_AQT_init
 	_AQT_deinit

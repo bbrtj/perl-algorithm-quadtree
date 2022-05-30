@@ -4,8 +4,6 @@ use strict;
 use warnings;
 use Carp;
 
-our $VERSION = '0.2';
-
 ###############################
 #
 # Creating a new QuadTree objects automatically
