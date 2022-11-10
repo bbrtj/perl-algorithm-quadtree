@@ -32,6 +32,9 @@ BEGIN {
 	$backend->import;
 }
 
+# List::Util 1.45 added 'uniqstr'
+use constant HAS_LIST_UTIL => eval { require List::Util; List::Util->VERSION('1.45'); 1 };
+
 sub new
 {
 	my $self  = shift;
@@ -138,19 +141,12 @@ sub getEnclosedObjects
 	@coords = $self->_adjustCoords(@coords)
 		unless $self->{SCALE} == 1;
 
-	my @results = @{_AQT_findObjects($self, @coords)};
-
-	# uniq results
-	my %temp = map { $_ => $_ } @results;
+	return _uniq(_AQT_findObjects($self, @coords));
 
 	# PS. I don't check explicitly if those objects
 	# are enclosed in the given area. They are just
 	# part of the segments that are enclosed in the
 	# given area. TBD.
-
-	# get values of %temp, since keys are strings
-	# even if they were references originally
-	return [values %temp];
 }
 
 sub setWindow
@@ -168,6 +164,20 @@ sub resetWindow
 
 	$self->{ORIGIN}[$_] = 0 for 0 .. 1;
 	$self->{SCALE} = 1;
+}
+
+# HELPERS
+# not called in object context
+
+sub _uniq
+{
+	if (HAS_LIST_UTIL) {
+		return [ List::Util::uniqstr(@{$_[0]}) ];
+	}
+	else {
+		my %temp = map { $_ => $_ } @{$_[0]};
+		return [ values %temp ];
+	}
 }
 
 1;
