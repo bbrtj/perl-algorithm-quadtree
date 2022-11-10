@@ -50,20 +50,12 @@ sub _loopOnNodesInCircle
 {
 	my ($self, @coords) = @_;
 
-	# this is a bounding box of a circle
-	# it will help us filter out all the far away shapes
-	my @box = (
-		$coords[0] - $coords[2],
-		$coords[1] - $coords[2],
-		$coords[0] + $coords[2],
-		$coords[1] + $coords[2],
-	);
-
 	# avoid squaring the radius on each iteration
 	my $radius_squared = $coords[2] ** 2;
 
 	my @nodes;
-	for my $current (@{_loopOnNodesInRectangle($self, @box)}) {
+	my @loopargs = $self->{ROOT};
+	for my $current (@loopargs) {
 		my ($cxmin, $cymin, $cxmax, $cymax) = @{$current->{AREA}};
 
 		my $cx = $coords[0] < $cxmin
@@ -80,9 +72,16 @@ sub _loopOnNodesInCircle
 				: $coords[1]
 		;
 
-		push @nodes, $current
-			if ($coords[0] - $cx) ** 2 + ($coords[1] - $cy) ** 2
-			<= $radius_squared;
+		# first check if obj overlaps current segment.
+		next if ($coords[0] - $cx) ** 2 + ($coords[1] - $cy) ** 2
+			> $radius_squared;
+
+		if ($current->{CHILDREN}) {
+			push @loopargs, @{$current->{CHILDREN}};
+		} else {
+			# segment is a leaf and overlaps the obj
+			push @nodes, $current;
+		}
 	}
 
 	return \@nodes;
@@ -141,7 +140,7 @@ sub _AQT_init
 
 sub _AQT_deinit
 {
-	# no nothing in PP implementation
+	# do nothing in PP implementation
 }
 
 sub _AQT_addObject
