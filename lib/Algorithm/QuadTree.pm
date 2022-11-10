@@ -101,16 +101,6 @@ sub add
 	@coords = $self->_adjustCoords(@coords)
 		unless $self->{SCALE} == 1;
 
-	# if the object is rectangular, make sure the lower coordinate is always
-	# the first one
-	if (@coords == 4) {
-		($coords[0], $coords[2]) = ($coords[2], $coords[0])
-			if $coords[2] < $coords[0];
-
-		($coords[1], $coords[3]) = ($coords[3], $coords[1])
-			if $coords[3] < $coords[1];
-	}
-
 	_AQT_addObject($self, $object, @coords);
 
 	return;
