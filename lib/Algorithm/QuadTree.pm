@@ -380,7 +380,7 @@ By default, the module uses L<Algorithm::QuadTree::PP>, which is the pure perl b
 
 If you install L<Algorithm::QuadTree::XS>, the module will load and use that
 instead. This behavior can be controlled by setting
-L<ALGORITHM_QUADTREE_BACKEND> environmental variable to the package name, which
+I<ALGORITHM_QUADTREE_BACKEND> environmental variable to the package name, which
 should be used as the backend.
 
 I<Note: the environmental variable must be present before loading Algorithm::QuadTree for the first time>
