@@ -1,5 +1,9 @@
 Revision history for Perl extension Algorithm::QuadTree.
 
+0.4   Thu Nov 10 18:30:00 2022
+	[Other changes]
+		- use List::Util for better search performance if it is available
+
 0.3   Mon May 30 22:00:00 2022
 	[Other changes]
 		- the module now has pluggable backends
