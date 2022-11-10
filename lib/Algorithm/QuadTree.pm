@@ -396,7 +396,7 @@ should be used as the backend.
 I<Note: the environmental variable must be present before loading Algorithm::QuadTree for the first time>
 
 	# will load pure perl backend regardless of XS availability
-	$ENV{ALGORITHM_QUADTREE_BACKEND} = 'Algorithm::QuadTree::PP';
+	BEGIN { $ENV{ALGORITHM_QUADTREE_BACKEND} = 'Algorithm::QuadTree::PP' };
 
 	use Algorithm::QuadTree;
 
