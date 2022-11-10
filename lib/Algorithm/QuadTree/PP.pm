@@ -61,7 +61,7 @@ sub _loopOnNodesInCircle
 
 	my @nodes;
 	my @loopargs = $self->{ROOT};
-	for my $current (@loopargs) {
+	while (my $current = shift @loopargs) {
 		next if $finding && !$current->{HAS_OBJECTS};
 
 		my ($cxmin, $cymin, $cxmax, $cymax) = @{$current->{AREA}};
@@ -104,7 +104,7 @@ sub _loopOnNodesInRectangle
 
 	my @nodes;
 	my @loopargs = $self->{ROOT};
-	for my $current (@loopargs) {
+	while (my $current = shift @loopargs) {
 		next if $finding && !$current->{HAS_OBJECTS};
 
 		# first check if obj overlaps current segment.
