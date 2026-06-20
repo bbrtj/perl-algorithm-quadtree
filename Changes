@@ -1,6 +1,8 @@
 Revision history for Perl extension Algorithm::QuadTree.
 
 {{$NEXT}}
+
+0.6 Sat Jun 20, 2026
 	[Other changes]
 		- greatly increase pure perl tree clearing performance
 		- remove benchmarks from distribution
