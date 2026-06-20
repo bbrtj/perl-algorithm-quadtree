@@ -212,12 +212,18 @@ sub _AQT_clear
 {
 	my ($self) = @_;
 
-	for my $key (keys %{$self->{BACKREF}}) {
-		for my $node (@{$self->{BACKREF}{$key}}) {
-			$node->{OBJECTS} = [];
-			_clearHasObjects($node);
+	my @loopargs = $self->{ROOT};
+	while (my $current = shift @loopargs) {
+		next unless $current->{HAS_OBJECTS};
+		$current->{HAS_OBJECTS} = 0;
+
+		if ($current->{CHILDREN}) {
+			push @loopargs, @{$current->{CHILDREN}};
+		} else {
+			@{$current->{OBJECTS}} = ();
 		}
 	}
+
 	$self->{BACKREF} = {};
 }
 
