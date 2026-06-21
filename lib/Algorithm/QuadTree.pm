@@ -112,6 +112,22 @@ sub add
 	return;
 }
 
+sub batchAdd
+{
+	my ($self, @pairs) = @_;
+
+	unless ($self->{SCALE} == 1) {
+		foreach my $item (@pairs) {
+			my $object = shift @$item;
+			$item = [$object, $self->_adjustCoords(@$item)];
+		}
+	}
+
+	_AQT_addObjects($self, @pairs);
+
+	return;
+}
+
 sub delete
 {
 	my ($self, $object) = @_;

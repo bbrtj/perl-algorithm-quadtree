@@ -10,6 +10,7 @@ our @EXPORT = qw(
 	_AQT_init
 	_AQT_deinit
 	_AQT_addObject
+	_AQT_addObjects
 	_AQT_findObjects
 	_AQT_delete
 	_AQT_clear
@@ -44,10 +45,8 @@ sub _addLevel
 			_addLevel($self, $depth, $node, $xmid, $ymin, $xmax, $ymid),
 		];
 	}
-	else {
-		# leaves must have empty aref in objects
-		$node->{OBJECTS} = [];
-	}
+
+	$node->{OBJECTS} = [];
 
 	return $node;
 }
@@ -136,6 +135,95 @@ sub _loopOnNodes
 	goto \&_loopOnNodesInRectangle;
 }
 
+sub _batchInsert
+{
+	my ($self, $items) = @_;
+
+	foreach my $item (@$items) {
+		if (@$item == 4) {
+			$item->[3] = $item->[3] ** 2;
+		}
+		elsif (@$item != 5) {
+			die 'unknown batch insertion item with size ' . scalar @$item;
+		}
+	}
+
+	my @nodes;
+	my @next_loopargs = @{$self->{ROOT}{CHILDREN}};
+	$self->{ROOT}{OBJECTS} = $items;
+	$self->{ROOT}{HAS_OBJECTS} ||= @$items > 0;
+
+	my $depth = 1;
+	while (@next_loopargs) {
+		++$depth;
+		my @loopargs = @next_loopargs;
+		@next_loopargs = ();
+		my @parents;
+
+		foreach my $current (@loopargs) {
+			my $parent = $current->{PARENT};
+			push @parents, $parent;
+
+			my $objects = $current->{OBJECTS};
+			my ($cxmin, $cymin, $cxmax, $cymax) = @{$current->{AREA}};
+			my $found = 0;
+
+			foreach my $object_and_coords (@{$parent->{OBJECTS}}) {
+				# first check if obj overlaps current segment.
+				if (@$object_and_coords == 5) {
+					next if
+						$object_and_coords->[1] > $cxmax ||
+						$object_and_coords->[3] < $cxmin ||
+						$object_and_coords->[2] > $cymax ||
+						$object_and_coords->[4] < $cymin;
+				}
+				else {
+					my $cx = $object_and_coords->[1] < $cxmin
+						? $cxmin - $object_and_coords->[1]
+						: $object_and_coords->[1] > $cxmax
+							? $cxmax - $object_and_coords->[1]
+							: 0
+					;
+
+					my $cy = $object_and_coords->[2] < $cymin
+						? $cymin - $object_and_coords->[2]
+						: $object_and_coords->[2] > $cymax
+							? $cymax - $object_and_coords->[2]
+							: 0
+					;
+
+					# first check if obj overlaps current segment.
+					next if $cx * $cx + $cy * $cy
+						> $object_and_coords->[3];
+				}
+
+				$found = 1;
+				push @$objects, $object_and_coords;
+			}
+
+			if ($found) {
+				$current->{HAS_OBJECTS} = 1;
+				if ($current->{CHILDREN}) {
+					push @next_loopargs, @{$current->{CHILDREN}}
+				}
+				else {
+					my $backref = $self->{BACKREF};
+					foreach my $object (@$objects) {
+						$object = $object->[0];
+						push @{$self->{BACKREF}{$object}}, $current;
+					}
+				}
+			}
+		}
+
+		foreach my $parent (@parents) {
+			@{$parent->{OBJECTS}} = ();
+		}
+	}
+
+	return \@nodes;
+}
+
 sub _clearHasObjects
 {
 	my $node = shift;
@@ -181,6 +269,13 @@ sub _AQT_addObject
 		push @{$node->{OBJECTS}}, $object;
 		push @{$self->{BACKREF}{$object}}, $node;
 	}
+}
+
+sub _AQT_addObjects
+{
+	my ($self, @items) = @_;
+
+	_batchInsert($self, \@items);
 }
 
 sub _AQT_findObjects
