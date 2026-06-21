@@ -15,6 +15,8 @@ our @EXPORT = qw(
 	_AQT_clear
 );
 
+use constant UNIQUE_RESULTS => 1;
+
 # recursive method which adds levels to the quadtree
 sub _addLevel
 {
@@ -187,11 +189,14 @@ sub _AQT_findObjects
 
 	# map returned nodes to an array containing all of
 	# their objects
-	return [
-		map {
-			@{$_->{OBJECTS}}
-		} @{_loopOnNodes($self, 1, @coords)}
-	];
+	my %hash;
+	foreach my $node (@{_loopOnNodes($self, 1, @coords)}) {
+		foreach my $object (@{$node->{OBJECTS}}) {
+			$hash{$object} = $object;
+		}
+	}
+
+	return [values %hash];
 }
 
 sub _AQT_delete
