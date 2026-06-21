@@ -25,9 +25,13 @@ BEGIN {
 	require Algorithm::QuadTree::PP;
 	$backend = 'Algorithm::QuadTree::PP';
 
+	my $backend_requested = defined $ENV{ALGORITHM_QUADTREE_BACKEND};
 	my $check_backend = $ENV{ALGORITHM_QUADTREE_BACKEND} || 'Algorithm::QuadTree::XS';
 	if (eval "require $check_backend; 1;") {
 		$backend = $check_backend;
+	}
+	elsif ($backend_requested) {
+		die $@;
 	}
 
 	$backend->import;

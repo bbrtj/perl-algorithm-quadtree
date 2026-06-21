@@ -4,6 +4,9 @@ Revision history for Perl extension Algorithm::QuadTree.
 	[Backend changes]
 		- backends can now add a UNIQUE_RESULTS constant, which states that their returned object lists are already unique
 
+	[Bug fixes]
+		- fix silencing failures to load a backend requested via an environmental variable
+
 	[Other changes]
 		- greatly increase pure Perl object finding performance
 
