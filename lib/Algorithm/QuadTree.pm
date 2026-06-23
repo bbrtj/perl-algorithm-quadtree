@@ -49,14 +49,19 @@ sub new
 
 	my $obj = bless {}, $class;
 
+	for my $arg (keys %args) {
+		if ($arg =~ s{^-}{}) {
+			$obj->{uc $arg} = $args{"-$arg"};
+		}
+	}
+
 	for my $arg (qw/xmin ymin xmax ymax depth/) {
-		unless (exists $args{"-$arg"}) {
+		unless (exists $obj->{uc $arg}) {
 			carp "- must specify $arg";
 			return undef;
 		}
-
-		$obj->{uc $arg} = $args{"-$arg"};
 	}
+
 
 	$obj->{ORIGIN} = [0, 0];
 	$obj->{SCALE} = 1;
@@ -143,11 +148,6 @@ sub getEnclosedObjects
 	else {
 		return _uniq(_AQT_findObjects($self, @coords));
 	}
-
-	# PS. I don't check explicitly if those objects
-	# are enclosed in the given area. They are just
-	# part of the segments that are enclosed in the
-	# given area. TBD.
 }
 
 sub setWindow
@@ -324,6 +324,22 @@ The depth of the quadtree.
 
 =back
 
+The following (non-mandatory) options can be specified as well:
+
+=over 8
+
+=item -checks
+
+This boolean option forces additional geometry checks on fetched objects.
+Without it, the returned results are an approximation with an observation error
+based on the tree resolution (area's dimension divided by C<($depth - 1) **
+2>). Double-checking each returned shape costs a bit of speed, but makes sure
+the results are accurate.
+
+This option can be changed at runtime by setting C<< $qt->{CHECKS} >>.
+
+=back
+
 =item I<$qt>-E<gt>B<add>(object, x0, y0, x1, y1)
 
 This method is used to add objects in shape of rectangles to the tree. It has
@@ -352,6 +368,11 @@ treated as a number, hinting you about the problem.
 This method returns an B<array reference> of all the objects that are assigned
 to the nodes that overlap the given rectangular area. The objects will be
 returned in the exact form they were passed to C<< ->add >>.
+
+With C<-checks> constructor argument or C<< $qt->{CHECKS} >> set to 1, this
+option will additionally perform a shape overlap test to get an accurate
+result. Depending on the tree configuration and the number of inserted objects,
+this can be a costly operation.
 
 =item I<$qt>-E<gt>B<getEnclosedObjects>(x, y, radius)
 

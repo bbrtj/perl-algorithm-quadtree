@@ -20,6 +20,89 @@ use constant UNIQUE_RESULTS => 1;
 use constant SHAPE_CIRCLE => 1;
 use constant SHAPE_RECTANGLE => 2;
 
+sub _buildShape
+{
+	my (@coords) = @_;
+	pop @coords while @coords > 4;
+
+	my $shape_type = @coords == 3 ? SHAPE_CIRCLE : SHAPE_RECTANGLE;
+
+	# pre-calculate some of the circle characteristics
+	if ($shape_type == SHAPE_CIRCLE) {
+		my $contained_radius = $coords[2] / sqrt(2);
+
+		# inner box for this circle - fully contained within the circle
+		unshift @coords, (
+			$coords[0] - $contained_radius,
+			$coords[1] - $contained_radius,
+			$coords[0] + $contained_radius,
+			$coords[1] + $contained_radius,
+		);
+
+		# avoid squaring the radius on each iteration
+		$coords[7] = $coords[6] ** 2;
+	}
+
+	# -1 is always shape type. We use array for speed.
+	push @coords, $shape_type;
+	return \@coords;
+}
+
+sub _shapesOverlap
+{
+	my ($s1, $s2) = @_;
+	my $type = $s1->[-1];
+
+	# same element
+	if ($type == $s2->[-1]) {
+		if ($type == SHAPE_CIRCLE) {
+			my $dist_x = $s1->[4] - $s2->[4];
+			my $dist_y = $s1->[5] - $s2->[5];
+			my $diagonal = $s1->[6] + $s2->[6];
+
+			return $dist_x ** 2 + $dist_y ** 2
+				<= $diagonal ** 2;
+		}
+		elsif ($type == SHAPE_RECTANGLE) {
+			return $s1->[0] <= $s2->[2] &&
+				$s1->[2] >= $s2->[0] &&
+				$s1->[1] <= $s2->[3] &&
+				$s1->[3] >= $s2->[1];
+		}
+	}
+
+	# different elements - circle first
+	($s1, $s2) = ($s2, $s1)
+		unless $type == SHAPE_CIRCLE;
+
+	my $cx = $s1->[4] < $s2->[0]
+		? $s2->[0] - $s1->[4]
+		: $s1->[4] > $s2->[2]
+			? $s2->[2] - $s1->[4]
+			: 0
+	;
+
+	my $cy = $s1->[5] < $s2->[1]
+		? $s2->[1] - $s1->[5]
+		: $s1->[5] > $s2->[3]
+			? $s2->[3] - $s1->[5]
+			: 0
+	;
+
+	return $cx ** 2 + $cy ** 2
+		<= $s1->[7];
+}
+
+sub _shapeContained
+{
+	my ($inner_s, $s) = @_;
+
+	return $s->[0] <= $inner_s->[0] &&
+		$s->[2] >= $inner_s->[2] &&
+		$s->[1] <= $inner_s->[1] &&
+		$s->[3] >= $inner_s->[3];
+}
+
 # recursive method which adds levels to the quadtree
 sub _addLevel
 {
@@ -28,7 +111,7 @@ sub _addLevel
 		PARENT => $parent,
 		OBJECTS => [],
 		HAS_OBJECTS => 0,
-		AREA => \@coords,
+		AREA => _buildShape(@coords),
 		DEPTH => $depth,
 	};
 
@@ -58,70 +141,18 @@ sub _addLevel
 sub _loopOnNodes
 {
 	my ($self, $finding, $shape) = @_;
-	my $shape_type = @{$shape} == 4 ? SHAPE_RECTANGLE : SHAPE_CIRCLE;
-
-	# pre-calculate some of the circle characteristics
-	if (@{$shape} == 3) {
-		my $contained_radius = $shape->[2] / sqrt(2);
-
-		# inner box for this circle - fully contained within the circle
-		unshift @{$shape}, (
-			$shape->[0] - $contained_radius,
-			$shape->[1] - $contained_radius,
-			$shape->[0] + $contained_radius,
-			$shape->[1] + $contained_radius,
-		);
-
-		# avoid squaring the radius on each iteration
-		$shape->[6] *= $shape->[6];
-	}
-
-	my @coords = @{$shape};
 
 	my @nodes;
 	my @loopargs = $self->{ROOT};
 	my @loopargs_contained;
 	my $fully_contained;
-	my ($area, $cx, $cy);
 	my $current;
 
 	while ($current = shift @loopargs) {
 		next if $finding && !$current->{HAS_OBJECTS};
-		$area = $current->{AREA};
 
-		$fully_contained =
-			$coords[0] <= $area->[0] &&
-			$coords[2] >= $area->[2] &&
-			$coords[1] <= $area->[1] &&
-			$coords[3] >= $area->[3];
-
-		if (!$fully_contained) {
-			if ($shape_type == SHAPE_CIRCLE) {
-				$cx = $coords[4] < $area->[0]
-					? $area->[0] - $coords[4]
-					: $coords[4] > $area->[2]
-						? $area->[2] - $coords[4]
-						: 0
-				;
-
-				$cy = $coords[5] < $area->[1]
-					? $area->[1] - $coords[5]
-					: $coords[5] > $area->[3]
-						? $area->[3] - $coords[5]
-						: 0
-				;
-
-				next if $cx ** 2 + $cy ** 2
-					> $coords[6];
-			}
-			elsif ($shape_type == SHAPE_RECTANGLE) {
-				next if
-					$coords[0] > $area->[2] ||
-					$coords[2] < $area->[0] ||
-					$coords[1] > $area->[3] ||
-					$coords[3] < $area->[1];
-			}
-		}
+		$fully_contained = _shapeContained($current->{AREA}, $shape);
+		next if !$fully_contained && !_shapesOverlap($shape, $current->{AREA});
 
 		if ($finding) {
 			push @nodes, $current;
@@ -198,8 +229,7 @@ sub _AQT_deinit
 sub _AQT_addObject
 {
 	my ($self, $object, @coords) = @_;
-	pop @coords while @coords > 4;
-	my $shape = \@coords;
+	my $shape = _buildShape(@coords);
 
 	my $nodes = _loopOnNodes($self, 0, $shape);
 	for my $node (@$nodes) {
@@ -213,14 +243,22 @@ sub _AQT_addObject
 sub _AQT_findObjects
 {
 	my ($self, @coords) = @_;
-	pop @coords while @coords > 4;
+	my $shape = _buildShape(@coords);
 
 	# map returned nodes to an array containing all of
 	# their objects
 	my %hash;
-	foreach my $node (@{_loopOnNodes($self, 1, \@coords)}) {
+	foreach my $node (@{_loopOnNodes($self, 1, $shape)}) {
 		foreach my $object (@{$node->{OBJECTS}}) {
 			$hash{$object} = $object;
+		}
+	}
+
+	if ($self->{CHECK}) {
+		my $backref = $self->{BACKREF};
+		foreach my $key (keys %hash) {
+			delete $hash{$key}
+				unless _shapesOverlap($shape, $backref->{$key});
 		}
 	}
 
