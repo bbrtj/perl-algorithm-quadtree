@@ -17,14 +17,19 @@ our @EXPORT = qw(
 
 use constant UNIQUE_RESULTS => 1;
 
+use constant SHAPE_CIRCLE => 1;
+use constant SHAPE_RECTANGLE => 2;
+
 # recursive method which adds levels to the quadtree
 sub _addLevel
 {
 	my ($self, $depth, $parent, @coords) = @_;
 	my $node = {
 		PARENT => $parent,
+		OBJECTS => [],
 		HAS_OBJECTS => 0,
 		AREA => \@coords,
+		DEPTH => $depth,
 	};
 
 	weaken $node->{PARENT} if $parent;
@@ -44,96 +49,113 @@ sub _addLevel
 			_addLevel($self, $depth, $node, $xmid, $ymin, $xmax, $ymid),
 		];
 	}
-	else {
-		# leaves must have empty aref in objects
-		$node->{OBJECTS} = [];
-	}
 
 	return $node;
 }
 
 # this private method executes $code on every leaf node of the tree
 # which is within the circular shape
-sub _loopOnNodesInCircle
-{
-	my ($self, $finding, @coords) = @_;
-
-	# avoid squaring the radius on each iteration
-	my $radius_squared = $coords[2] ** 2;
-
-	my @nodes;
-	my @loopargs = $self->{ROOT};
-	while (my $current = shift @loopargs) {
-		next if $finding && !$current->{HAS_OBJECTS};
-
-		my ($cxmin, $cymin, $cxmax, $cymax) = @{$current->{AREA}};
-
-		my $cx = $coords[0] < $cxmin
-			? $cxmin - $coords[0]
-			: $coords[0] > $cxmax
-				? $cxmax - $coords[0]
-				: 0
-		;
-
-		my $cy = $coords[1] < $cymin
-			? $cymin - $coords[1]
-			: $coords[1] > $cymax
-				? $cymax - $coords[1]
-				: 0
-		;
-
-		# first check if obj overlaps current segment.
-		next if $cx ** 2 + $cy ** 2
-			> $radius_squared;
-
-		$current->{HAS_OBJECTS} = 1 if !$finding;
-		if ($current->{CHILDREN}) {
-			push @loopargs, @{$current->{CHILDREN}};
-		} else {
-			# segment is a leaf and overlaps the obj
-			push @nodes, $current;
-		}
-	}
-
-	return \@nodes;
-}
-
-# this private method executes $code on every leaf node of the tree
-# which is within the rectangular shape
-sub _loopOnNodesInRectangle
-{
-	my ($self, $finding, @coords) = @_;
-
-	my @nodes;
-	my @loopargs = $self->{ROOT};
-	while (my $current = shift @loopargs) {
-		next if $finding && !$current->{HAS_OBJECTS};
-
-		# first check if obj overlaps current segment.
-		next if
-			$coords[0] > $current->{AREA}[2] ||
-			$coords[2] < $current->{AREA}[0] ||
-			$coords[1] > $current->{AREA}[3] ||
-			$coords[3] < $current->{AREA}[1];
-
-		$current->{HAS_OBJECTS} = 1 if !$finding;
-		if ($current->{CHILDREN}) {
-			push @loopargs, @{$current->{CHILDREN}};
-		} else {
-			# segment is a leaf and overlaps the obj
-			push @nodes, $current;
-		}
-	}
-
-	return \@nodes;
-}
-
-# choose the right function based on argument count
-# first argument is always $self, second is $finding, the rest are coords
 sub _loopOnNodes
 {
-	goto \&_loopOnNodesInCircle if @_ == 5;
-	goto \&_loopOnNodesInRectangle;
+	my ($self, $finding, $shape) = @_;
+	my $shape_type = @{$shape} == 4 ? SHAPE_RECTANGLE : SHAPE_CIRCLE;
+
+	# pre-calculate some of the circle characteristics
+	if (@{$shape} == 3) {
+		my $contained_radius = $shape->[2] / sqrt(2);
+
+		# inner box for this circle - fully contained within the circle
+		unshift @{$shape}, (
+			$shape->[0] - $contained_radius,
+			$shape->[1] - $contained_radius,
+			$shape->[0] + $contained_radius,
+			$shape->[1] + $contained_radius,
+		);
+
+		# avoid squaring the radius on each iteration
+		$shape->[6] *= $shape->[6];
+	}
+
+	my @coords = @{$shape};
+
+	my @nodes;
+	my @loopargs = $self->{ROOT};
+	my @loopargs_contained;
+	my $fully_contained;
+	my ($area, $cx, $cy);
+	my $current;
+
+	while ($current = shift @loopargs) {
+		next if $finding && !$current->{HAS_OBJECTS};
+		$area = $current->{AREA};
+
+		$fully_contained =
+			$coords[0] <= $area->[0] &&
+			$coords[2] >= $area->[2] &&
+			$coords[1] <= $area->[1] &&
+			$coords[3] >= $area->[3];
+
+		if (!$fully_contained) {
+			if ($shape_type == SHAPE_CIRCLE) {
+				$cx = $coords[4] < $area->[0]
+					? $area->[0] - $coords[4]
+					: $coords[4] > $area->[2]
+						? $area->[2] - $coords[4]
+						: 0
+				;
+
+				$cy = $coords[5] < $area->[1]
+					? $area->[1] - $coords[5]
+					: $coords[5] > $area->[3]
+						? $area->[3] - $coords[5]
+						: 0
+				;
+
+				next if $cx ** 2 + $cy ** 2
+					> $coords[6];
+			}
+			elsif ($shape_type == SHAPE_RECTANGLE) {
+				next if
+					$coords[0] > $area->[2] ||
+					$coords[2] < $area->[0] ||
+					$coords[1] > $area->[3] ||
+					$coords[3] < $area->[1];
+			}
+		}
+
+		if ($finding) {
+			push @nodes, $current;
+			next unless $current->{CHILDREN};
+
+			if ($fully_contained) {
+				push @loopargs_contained, @{$current->{CHILDREN}};
+			}
+			else {
+				push @loopargs, @{$current->{CHILDREN}};
+			}
+		}
+		else {
+			$current->{HAS_OBJECTS} = 1;
+			if ($fully_contained || !$current->{CHILDREN}) {
+				push @nodes, $current;
+			}
+			else {
+				push @loopargs, @{$current->{CHILDREN}};
+			}
+		}
+	}
+
+	if ($finding) {
+		while (my $current = shift @loopargs_contained) {
+			next if !$current->{HAS_OBJECTS};
+
+			push @nodes, $current;
+			push @loopargs_contained, @{$current->{CHILDREN}}
+				if $current->{CHILDREN};
+		}
+	}
+
+	return \@nodes;
 }
 
 sub _clearHasObjects
@@ -176,24 +198,27 @@ sub _AQT_deinit
 sub _AQT_addObject
 {
 	my ($self, $object, @coords) = @_;
+	pop @coords while @coords > 4;
+	my $shape = \@coords;
 
-	my $nodes = _loopOnNodes($self, 0, @coords);
+	my $nodes = _loopOnNodes($self, 0, $shape);
 	for my $node (@$nodes) {
 		push @{$node->{OBJECTS}}, $object;
 	}
 
-	$self->{BACKREF}{$object} = \@coords
+	$self->{BACKREF}{$object} = $shape
 		unless @$nodes == 0;
 }
 
 sub _AQT_findObjects
 {
 	my ($self, @coords) = @_;
+	pop @coords while @coords > 4;
 
 	# map returned nodes to an array containing all of
 	# their objects
 	my %hash;
-	foreach my $node (@{_loopOnNodes($self, 1, @coords)}) {
+	foreach my $node (@{_loopOnNodes($self, 1, \@coords)}) {
 		foreach my $object (@{$node->{OBJECTS}}) {
 			$hash{$object} = $object;
 		}
@@ -207,9 +232,8 @@ sub _AQT_delete
 	my ($self, $object) = @_;
 
 	return unless exists $self->{BACKREF}{$object};
-	my @coords = @{$self->{BACKREF}{$object}};
 
-	for my $node (@{_loopOnNodes($self, 1, @coords)}) {
+	for my $node (@{_loopOnNodes($self, 1, $self->{BACKREF}{$object})}) {
 		@{$node->{OBJECTS}} = grep {$_ ne $object} @{$node->{OBJECTS}};
 		_clearHasObjects($node) if !@{$node->{OBJECTS}};
 	}
@@ -224,12 +248,12 @@ sub _AQT_clear
 	my @loopargs = $self->{ROOT};
 	while (my $current = shift @loopargs) {
 		next unless $current->{HAS_OBJECTS};
+
+		@{$current->{OBJECTS}} = ();
 		$current->{HAS_OBJECTS} = 0;
 
 		if ($current->{CHILDREN}) {
 			push @loopargs, @{$current->{CHILDREN}};
-		} else {
-			@{$current->{OBJECTS}} = ();
 		}
 	}
 

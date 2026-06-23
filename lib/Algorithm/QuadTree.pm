@@ -281,6 +281,10 @@ each of those nodes, we recursively check I<their> children nodes, and so on
 until we reach the leaves of the tree. Finally, we find all the objects that are
 assigned to those leaf nodes and check them for overlap with the initial area.
 
+In case an object is so big that it fully contains given node's area, it can be
+inserted into a higher node before it reaches the leaf, saving space and
+redundant descending into the tree's hierarchy.
+
 =head1 CLASS METHODS
 
 The following methods are public:
