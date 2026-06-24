@@ -328,7 +328,7 @@ The following (non-mandatory) options can be specified as well:
 
 =over 8
 
-=item -checks
+=item -check
 
 This boolean option forces additional geometry checks on fetched objects.
 Without it, the returned results are an approximation with an observation error
@@ -336,7 +336,7 @@ based on the tree resolution (area's dimension divided by C<($depth - 1) **
 2>). Double-checking each returned shape costs a bit of speed, but makes sure
 the results are accurate.
 
-This option can be changed at runtime by setting C<< $qt->{CHECKS} >>.
+This option can be changed at runtime by setting C<< $qt->{CHECK} >>.
 
 =back
 
@@ -369,7 +369,7 @@ This method returns an B<array reference> of all the objects that are assigned
 to the nodes that overlap the given rectangular area. The objects will be
 returned in the exact form they were passed to C<< ->add >>.
 
-With C<-checks> constructor argument or C<< $qt->{CHECKS} >> set to 1, this
+With C<-check> constructor argument or C<< $qt->{CHECK} >> set to 1, this
 option will additionally perform a shape overlap test to get an accurate
 result. Depending on the tree configuration and the number of inserted objects,
 this can be a costly operation.
