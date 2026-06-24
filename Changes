@@ -1,6 +1,8 @@
 Revision history for Perl extension Algorithm::QuadTree.
 
 {{$NEXT}}
+
+0.9 Wed Jun 24, 2026
 	[New features]
 		- new option -check, which forces additional geometry checks on fetched shapes
 
