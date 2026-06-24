@@ -17,10 +17,35 @@ my $qt = Algorithm::QuadTree->new(
 	-depth => 2,
 );
 
+$qt->add('point', 1, 6);
 $qt->add('circle', 1, 1, 1);
 $qt->add('rectangle', 6, 6, 8, 8);
 
 # start testing
+
+subtest 'point vs point check' => sub {
+	my $list = $qt->get(1, 5.99);
+	check_array $list, [];
+
+	$list = $qt->get(1, 6);
+	check_array $list, ['point'];
+};
+
+subtest 'point vs circle check' => sub {
+	my $list = $qt->get(1, 2.01);
+	check_array $list, [];
+
+	$list = $qt->get(1, 2);
+	check_array $list, ['circle'];
+};
+
+subtest 'point vs rectangle check' => sub {
+	my $list = $qt->get(5.99, 6);
+	check_array $list, [];
+
+	$list = $qt->get(6, 6);
+	check_array $list, ['rectangle'];
+};
 
 subtest 'circle vs circle check' => sub {
 	my $list = $qt->get(2, 2, 0.4);

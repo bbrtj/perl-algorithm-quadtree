@@ -17,18 +17,33 @@ our @EXPORT = qw(
 
 use constant UNIQUE_RESULTS => 1;
 
-use constant SHAPE_CIRCLE => 1;
-use constant SHAPE_RECTANGLE => 2;
+use constant SHAPE_POINT => 1;
+use constant SHAPE_CIRCLE => 2;
+use constant SHAPE_RECTANGLE => 3;
+
+# NOTE: this is optimization for points. Since points don't have an inner box
+# we can calculate, populate first coordinate of that box with this big number.
+# This should short-circuit _shapeContained test on the first conditional, but
+# in case it doesn't, populate the third inner box coordinate with this - 1,
+# which is guaranteed to fail.
+use constant BIG_COORD => 1e9;
 
 sub _buildShape
 {
 	my (@coords) = @_;
 	pop @coords while @coords > 4;
 
-	my $shape_type = @coords == 3 ? SHAPE_CIRCLE : SHAPE_RECTANGLE;
-
-	# pre-calculate some of the circle characteristics
-	if ($shape_type == SHAPE_CIRCLE) {
+	if (@coords == 2) {
+		unshift @coords, (
+			BIG_COORD,
+			BIG_COORD,
+			BIG_COORD - 1,
+			BIG_COORD - 1,
+		);
+		push @coords, SHAPE_POINT;
+	}
+	elsif (@coords == 3) {
+		# pre-calculate some of the circle characteristics
 		my $contained_radius = $coords[2] / sqrt(2);
 
 		# inner box for this circle - fully contained within the circle
@@ -41,10 +56,13 @@ sub _buildShape
 
 		# avoid squaring the radius on each iteration
 		$coords[7] = $coords[6] ** 2;
+		push @coords, SHAPE_CIRCLE;
+	}
+	elsif (@coords == 4) {
+		push @coords, SHAPE_RECTANGLE;
 	}
 
 	# -1 is always shape type. We use array for speed.
-	push @coords, $shape_type;
 	return \@coords;
 }
 
@@ -52,10 +70,31 @@ sub _shapesOverlap
 {
 	my ($s1, $s2) = @_;
 	my $type = $s1->[-1];
+	my $type2 = $s2->[-1];
 
-	# same element
-	if ($type == $s2->[-1]) {
-		if ($type == SHAPE_CIRCLE) {
+	($s1, $s2) = ($s2, $s1)
+		if $type > $type2;
+
+	if ($type == SHAPE_POINT) {
+		if ($type2 == SHAPE_POINT) {
+			return $s1->[4] == $s2->[4] && $s1->[5] == $s2->[5];
+		}
+		elsif ($type2 == SHAPE_CIRCLE) {
+			my $dist_x = $s1->[4] - $s2->[4];
+			my $dist_y = $s1->[5] - $s2->[5];
+
+			return $dist_x ** 2 + $dist_y ** 2
+				<= $s2->[7];
+		}
+		elsif ($type2 == SHAPE_RECTANGLE) {
+			return $s1->[4] >= $s2->[0] &&
+				$s1->[4] <= $s2->[2] &&
+				$s1->[5] >= $s2->[1] &&
+				$s1->[5] <= $s2->[3];
+		}
+	}
+	elsif ($type == SHAPE_CIRCLE) {
+		if ($type2 == SHAPE_CIRCLE) {
 			my $dist_x = $s1->[4] - $s2->[4];
 			my $dist_y = $s1->[5] - $s2->[5];
 			my $diagonal = $s1->[6] + $s2->[6];
@@ -63,34 +102,31 @@ sub _shapesOverlap
 			return $dist_x ** 2 + $dist_y ** 2
 				<= $diagonal ** 2;
 		}
-		elsif ($type == SHAPE_RECTANGLE) {
-			return $s1->[0] <= $s2->[2] &&
-				$s1->[2] >= $s2->[0] &&
-				$s1->[1] <= $s2->[3] &&
-				$s1->[3] >= $s2->[1];
+		elsif ($type2 == SHAPE_RECTANGLE) {
+			my $cx = $s1->[4] < $s2->[0]
+				? $s2->[0] - $s1->[4]
+				: $s1->[4] > $s2->[2]
+					? $s2->[2] - $s1->[4]
+					: 0
+			;
+
+			my $cy = $s1->[5] < $s2->[1]
+				? $s2->[1] - $s1->[5]
+				: $s1->[5] > $s2->[3]
+					? $s2->[3] - $s1->[5]
+					: 0
+			;
+
+			return $cx ** 2 + $cy ** 2
+				<= $s1->[7];
 		}
 	}
-
-	# different elements - circle first
-	($s1, $s2) = ($s2, $s1)
-		unless $type == SHAPE_CIRCLE;
-
-	my $cx = $s1->[4] < $s2->[0]
-		? $s2->[0] - $s1->[4]
-		: $s1->[4] > $s2->[2]
-			? $s2->[2] - $s1->[4]
-			: 0
-	;
-
-	my $cy = $s1->[5] < $s2->[1]
-		? $s2->[1] - $s1->[5]
-		: $s1->[5] > $s2->[3]
-			? $s2->[3] - $s1->[5]
-			: 0
-	;
-
-	return $cx ** 2 + $cy ** 2
-		<= $s1->[7];
+	elsif ($type == SHAPE_RECTANGLE) {
+		return $s1->[0] <= $s2->[2] &&
+			$s1->[2] >= $s2->[0] &&
+			$s1->[1] <= $s2->[3] &&
+			$s1->[3] >= $s2->[1];
+	}
 }
 
 sub _shapeContained
