@@ -135,6 +135,22 @@ sub clear
 	return;
 }
 
+sub get
+{
+	my ($self, @coords) = @_;
+
+	@coords = $self->_adjustCoords(@coords)
+		unless $self->{SCALE} == 1;
+
+	$self->{CHECK} = 1;
+	if (BACKEND_UNIQUE_RESULTS) {
+		return _AQT_findObjects($self, @coords);
+	}
+	else {
+		return _uniq(_AQT_findObjects($self, @coords));
+	}
+}
+
 sub getEnclosedObjects
 {
 	my ($self, @coords) = @_;
@@ -142,12 +158,18 @@ sub getEnclosedObjects
 	@coords = $self->_adjustCoords(@coords)
 		unless $self->{SCALE} == 1;
 
+	$self->{CHECK} = 0;
 	if (BACKEND_UNIQUE_RESULTS) {
 		return _AQT_findObjects($self, @coords);
 	}
 	else {
 		return _uniq(_AQT_findObjects($self, @coords));
 	}
+}
+
+sub getApprox
+{
+	goto \&getEnclosedObjects;
 }
 
 sub setWindow
@@ -324,22 +346,6 @@ The depth of the quadtree.
 
 =back
 
-The following (non-mandatory) options can be specified as well:
-
-=over 8
-
-=item -check
-
-This boolean option forces additional geometry checks on fetched objects.
-Without it, the returned results are an approximation with an observation error
-based on the tree resolution (area's dimension divided by C<($depth - 1) **
-2>). Double-checking each returned shape costs a bit of speed, but makes sure
-the results are accurate.
-
-This option can be changed at runtime by setting C<< $qt->{CHECK} >>.
-
-=back
-
 =item I<$qt>-E<gt>B<add>(object, x0, y0, x1, y1)
 
 This method is used to add objects in shape of rectangles to the tree. It has
@@ -367,12 +373,7 @@ treated as a number, hinting you about the problem.
 
 This method returns an B<array reference> of all the objects that are assigned
 to the nodes that overlap the given rectangular area. The objects will be
-returned in the exact form they were passed to C<< ->add >>.
-
-With C<-check> constructor argument or C<< $qt->{CHECK} >> set to 1, this
-option will additionally perform a shape overlap test to get an accurate
-result. Depending on the tree configuration and the number of inserted objects,
-this can be a costly operation.
+returned in the exact form they were passed to C<< ->add >> (the first argument).
 
 =item I<$qt>-E<gt>B<getEnclosedObjects>(x, y, radius)
 
@@ -384,6 +385,20 @@ potential empty / undef values in your coordinates, as long as the number of
 arguments is right. It will never treat C<< ->getEnclosedObjects(1, 2, 3, undef) >>
 as a call to the circular version, and instead produce warnings about
 undef being treated as a number, hinting you about the problem.
+
+=item I<$qt>-E<gt>B<getApprox>(x0, y0, x1, y1)
+
+=item I<$qt>-E<gt>B<getApprox>(x, y, radius)
+
+These are aliases for both forms of C<getEnclosedObjects>.
+
+=item I<$qt>-E<gt>B<get>(x0, y0, x1, y1)
+
+=item I<$qt>-E<gt>B<get>(x, y, radius)
+
+These work like C<getEnclosedObjects>, but they perform an additional check on
+returned objects, so that the objects are guaranteed to be geometrically
+overlapping with the search area.
 
 =item I<$qt>-E<gt>B<delete>(object)
 
